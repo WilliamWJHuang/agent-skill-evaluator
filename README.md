@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🔍 skill-evaluator</h1>
+  <h1 align="center">🔍 agent-skill-evaluator</h1>
   <p align="center">
     <strong>Evaluate agent skills before you install them.</strong><br>
     Think <code>npm audit</code> + <code>eslint</code> for <code>SKILL.md</code> files.
