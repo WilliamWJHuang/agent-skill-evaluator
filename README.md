@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🔍 agent-skill-evaluator</h1>
+  <h1 align="center">🔍 skill-evaluator</h1>
   <p align="center">
     <strong>Evaluate agent skills before you install them.</strong><br>
     Think <code>npm audit</code> + <code>eslint</code> for <code>SKILL.md</code> files.
@@ -15,7 +15,7 @@ There are **1,000+ agent skills** on GitHub. Most have no quality signal beyond 
 - Is it **structurally sound**? (valid SKILL.md, proper metadata)
 - Is it **safe**? (no prompt injection, credential harvesting, data exfiltration)
 - Is it **high quality**? (decision trees, guardrails, edge cases)
-- Is it **domain-correct**? (does it recommend the right statistical test? the right causal method?)
+- Is it **domain-correct**? (does it follow best practices for its domain — statistics, marketing, experiment design, etc.?)
 - Is it **maintained**? (recent updates, tests, documentation)
 
 `skill-evaluator` answers all five questions with a single command.
@@ -40,6 +40,7 @@ skill-eval ../skills/causal-inference-advisor/ --format json
 
 # Force a specific domain for correctness checking
 skill-eval ./some-skill/ --domain statistics
+skill-eval ./some-skill/ --domain digital-marketing
 
 # CI mode: fail if score is below threshold
 skill-eval ./some-skill/ --fail-below 70
@@ -71,13 +72,17 @@ skill-eval ./some-skill/ --fail-below 70
 
 ### Scoring Dimensions
 
+Each dimension produces a 0–100 score. These are combined into a weighted composite:
+
 | Dimension | Weight | What It Checks |
 |:---|:---:|:---|
-| **Structure** | 15% | YAML frontmatter, required fields, section organization. Penalties are weighted per finding — missing the entire file costs far more than missing a recommended field. |
-| **Security** | 20% | Shell injection, credential exfil, prompt injection, obfuscation. **Acts as a gate**: critical findings cap the overall score at F, high findings cap at D, regardless of other dimensions. |
-| **Quality** | 15% | Decision trees, guardrails, edge cases, escape hatches, code templates. Score is the ratio of passed checks to applicable checks — concise skills aren't penalized for having less text. |
-| **Domain Correctness** | 25% | Rule-based verification of domain-specific methodology (statistics, causal inference, data science). |
-| **Maintenance** | 15% | File freshness, docs, tests, CI config, git signals. Same ratio-based scoring as quality. |
+| **Structure** | 15% | YAML frontmatter, required fields (`name`, `description`, `triggers`), section organization |
+| **Security** | 20% | Shell injection, credential exfiltration, prompt injection, obfuscation |
+| **Quality** | 15% | Decision trees, guardrails, edge cases, escape hatches, code templates |
+| **Domain Correctness** | 25% | Rule-based verification of domain-specific methodology and best practices |
+| **Maintenance** | 15% | File freshness, documentation, tests, CI config, auxiliary files |
+
+> **Note:** Weights are normalized at runtime so they don't need to sum to exactly 100%. If you override weights via `--weights`, any missing dimensions default to 10%.
 
 ### Grading Scale
 
@@ -95,21 +100,37 @@ skill-eval ./some-skill/ --fail-below 70
 | D | 40–49 | Very poor — not recommended |
 | F | 0–39 | Failing — critical issues, do not install |
 
-> **Note:** If the security analyzer detects critical or high-severity risks, the overall score is hard-capped (critical → F, high → D) regardless of other dimensions.
-
 ---
 
 ## Domain Correctness Rules
 
-The **novel differentiator**. Unlike security/structure checks that any tool can do, domain correctness verifies the *guidance itself* is correct.
+The **novel differentiator**. Unlike security/structure checks that any tool can do, domain correctness verifies the *guidance itself* is correct for its stated domain.
 
 ### Built-in Domains
 
 | Domain | Rules | Checks |
 |:---|:---:|:---|
-| **Statistics** | 8 | Normality assumptions, effect sizes, multiple comparisons, power analysis, seed sensitivity |
-| **Causal Inference** | 8 | Identification strategies, parallel trends, IV assumptions, RDD bandwidth, matching balance |
+| **Statistics** | 8 | Normality assumptions, effect sizes, multiple comparisons, power analysis, seed sensitivity, regression assumptions |
+| **Causal Inference** | 8 | Identification strategies, parallel trends, IV assumptions, RDD bandwidth, matching balance, HTE |
+| **Experiment Design** | 8 | Power analysis, randomization, variance reduction (CUPED), pre-registration, SRM checks, sequential testing |
 | **Data Science** | 5 | Data leakage, missing data mechanisms, cross-validation, metric selection, outlier handling |
+| **Digital Marketing** | 25 | Attribution modeling, marketing mix modeling, CLV/churn methodology, SEO/SEM, email deliverability, ad tech, privacy compliance |
+
+The digital marketing domain is organized into 7 sub-domain files:
+
+| Sub-domain | Rules | Focus |
+|:---|:---:|:---|
+| Attribution & Measurement | 4 | Model awareness, incrementality testing, view-through caveats, cross-device |
+| Marketing Mix Modeling | 3 | Adstock/carryover, diminishing returns, channel interactions |
+| Customer Analytics | 4 | CLV methodology, churn definition, segmentation, cohort analysis |
+| SEO / SEM | 4 | Technical SEO, bidding strategy, keyword research, E-E-A-T |
+| Email / CRM | 3 | Deliverability (SPF/DKIM/DMARC), list hygiene, personalization |
+| Ad Tech / Programmatic | 3 | Auction mechanics, frequency capping, viewability and fraud |
+| General Marketing | 4 | Funnel understanding, privacy compliance, tracking infrastructure, KPI alignment |
+
+### Domain Auto-Detection
+
+When you run `skill-eval` without `--domain`, the analyzer auto-detects the most likely domain by counting keyword signals in the skill content. For example, a skill mentioning "attribution," "ROAS," and "landing page" detects as `digital-marketing`, while one mentioning "p-value," "effect size," and "t-test" detects as `statistics`.
 
 ### Adding Custom Domains
 
@@ -132,7 +153,9 @@ rules:
     success_message: "What went right"
 ```
 
-We ship with Statistics, Causal Inference, and Data Science domains, but this is meant to be extensible. If you have domain expertise in another area (e.g., epidemiology, finance, NLP evaluation, survey design) and want to contribute a rule set, open a PR with your YAML file and we'll review it. The more domains covered, the more useful this tool becomes for everyone.
+For domains with many rules, you can organize them into a **directory** instead of a single file. Create `skill_evaluator/domains/my-domain/` and place multiple `.yaml` files inside — all rules are automatically merged at load time.
+
+We currently ship with Statistics, Causal Inference, Experiment Design, Data Science, and Digital Marketing. This is meant to be extensible. If you have domain expertise in another area (e.g., finance, healthcare, NLP evaluation, survey design, product management) and want to contribute a rule set, open a PR and we'll review it. The more domains covered, the more useful this tool becomes for everyone.
 
 ---
 
@@ -171,15 +194,17 @@ skill-eval ../skills/stats-reviewer/
 
 ---
 
-## How scoring works
+## How Scoring Works
 
-Each dimension (Structure, Security, Quality, Domain Correctness, Maintenance) produces a 0-100 score. These are combined into a weighted composite.
+Each dimension (Structure, Security, Quality, Domain Correctness, Maintenance) produces a 0–100 score. These are combined into a weighted composite, normalized by the total weight of applicable dimensions.
 
-A few things worth knowing about the scoring:
+A few things worth knowing:
 
 **Security is a gate, not just a weight.** If the security analyzer finds critical risks (prompt injection, credential harvesting, destructive shell commands), the overall score is hard-capped regardless of how well the skill scores on other dimensions. A skill with a prompt injection vulnerability gets an F even if the content is otherwise excellent.
 
-**Scores are normalized by applicable checks.** Quality and maintenance scores are computed as the ratio of passed checks to applicable checks. A concise, well-written skill won't score lower than a verbose one just because it has fewer regex matches. Each check that fires gets equal vote.
+**Domain correctness uses a two-tier severity model.** Rules flagged as `incorrect` (e.g., recommending last-click attribution as the only model, or computing CLV without a proper probabilistic framework) carry heavier penalties than those flagged as `suspicious` (best-practice recommendations that may vary by context). This lets the evaluator distinguish hard errors from soft guidance.
+
+**Scores are normalized by applicable checks.** Quality and maintenance scores are computed as the ratio of passed checks to applicable checks. A concise, well-written skill won't score lower than a verbose one just because it has fewer regex matches. Each check that fires gets an equal vote.
 
 **Structural penalties are weighted by severity.** Missing your SKILL.md entirely costs more than missing a recommended field. The penalty for each finding reflects how much it actually impacts usability.
 
@@ -187,15 +212,17 @@ A few things worth knowing about the scoring:
 
 ---
 
-## Future research
+## Future Research
 
 These are directions we'd like to explore. Contributions welcome.
 
-**Empirical weight calibration.** The dimension weights (Security 20%, Domain 25%, etc.) are based on judgment, not data. The right approach is to score a labeled corpus of known-good vs. known-bad skills and use the results to find weights that best predict the label. If you have a labeled skill corpus or want to help build one, open an issue.
+**Empirical weight calibration.** The dimension weights (Security 20%, Domain 25%, etc.) are based on informed judgment, not data. The right approach is to score a labeled corpus of known-good vs. known-bad skills and use the results to find weights that best predict the label. If you have a labeled skill corpus or want to help build one, open an issue.
 
 **Semantic domain checks.** The domain correctness analyzer currently uses regex patterns — it checks whether certain keywords appear, not whether the guidance is actually correct. Replacing this with embedding-based or lightweight LLM checks (e.g., "does this skill enforce power analysis, or just mention it?") would substantially improve accuracy.
 
 **Behavioral evaluation.** The ultimate test of a skill is: does an agent using it produce better outputs? A test harness with known-correct answers (e.g., "given this dataset, should the agent refuse to run the test?") would let us score skills by downstream impact rather than surface patterns. This is the direction taken by SkillsBench-style evaluations and would make this tool a performance predictor, not just a linter.
+
+**More domains.** We're actively expanding domain coverage. Next candidates include finance, healthcare, software engineering, and product management. Contributions welcome — each new domain just requires a YAML rule set and test fixtures.
 
 ---
 

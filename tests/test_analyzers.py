@@ -26,6 +26,8 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 GOOD_SKILL = FIXTURES_DIR / "good-skill"
 BAD_SKILL = FIXTURES_DIR / "bad-skill"
 MALICIOUS_SKILL = FIXTURES_DIR / "malicious-skill"
+GOOD_MARKETING_SKILL = FIXTURES_DIR / "good-marketing-skill"
+BAD_MARKETING_SKILL = FIXTURES_DIR / "bad-marketing-skill"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -156,6 +158,79 @@ class TestDomainCorrectnessAnalyzer:
         result = self.analyzer.analyze(GOOD_SKILL, domain="quantum-computing")
         assert result.score == 50.0  # Neutral for unknown domains
 
+    def test_stats_skill_not_detected_as_marketing(self):
+        """Regression: statistics skills should not false-positive as digital-marketing."""
+        result = self.analyzer.analyze(GOOD_SKILL)
+        assert result.domain == "statistics", (
+            f"Good stats skill misdetected as {result.domain} — "
+            "digital-marketing detection signals may be too broad"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Digital Marketing Domain Tests
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestDigitalMarketingDomain:
+    """Tests for the digital-marketing domain rules (7 sub-domain YAMLs)."""
+
+    def setup_method(self):
+        self.analyzer = DomainCorrectnessAnalyzer()
+
+    def test_good_marketing_skill_domain_detection(self):
+        """Good marketing skill should auto-detect as digital-marketing."""
+        result = self.analyzer.analyze(GOOD_MARKETING_SKILL)
+        assert result.domain == "digital-marketing", (
+            f"Expected digital-marketing, got {result.domain}"
+        )
+
+    def test_good_marketing_skill_passes_rules(self):
+        """Good fixture should pass the majority of applicable rules."""
+        result = self.analyzer.analyze(GOOD_MARKETING_SKILL)
+        assert result.rules_passed > 0, "Good marketing skill should pass some rules"
+        assert result.score >= 60, f"Good marketing skill score too low: {result.score}"
+
+    def test_good_marketing_loads_all_subdomain_rules(self):
+        """Verify that multi-file domain loading merges all 7 YAML files."""
+        rules = self.analyzer._load_rules("digital-marketing")
+        # 7 files × 3-4 rules = 25 total rules
+        assert len(rules) >= 20, (
+            f"Expected ~25 rules from 7 sub-domain files, got {len(rules)}"
+        )
+
+    def test_bad_marketing_skill_fails_rules(self):
+        """Bad fixture should trigger failures on applicable rules."""
+        result = self.analyzer.analyze(BAD_MARKETING_SKILL, domain="digital-marketing")
+        assert result.rules_failed > 0, "Bad marketing skill should fail rules"
+        assert result.score < 60, f"Bad marketing skill score too high: {result.score}"
+
+    def test_bad_marketing_skill_attribution_antipattern(self):
+        """Bad fixture recommends last-click as 'the best' — should trigger antipattern."""
+        result = self.analyzer.analyze(BAD_MARKETING_SKILL, domain="digital-marketing")
+        incorrect_findings = [
+            f for f in result.findings if f.severity == "incorrect"
+        ]
+        assert len(incorrect_findings) > 0, (
+            "Bad marketing skill should have at least one 'incorrect' finding "
+            "(e.g., last-click antipattern or naive CLV)"
+        )
+
+    def test_bad_marketing_skill_detects_list_purchase_antipattern(self):
+        """Bad fixture mentions buying email lists — should trigger antipattern."""
+        result = self.analyzer.analyze(BAD_MARKETING_SKILL, domain="digital-marketing")
+        rule_names = [f.rule_name for f in result.findings if f.severity != "correct"]
+        assert any("list" in name or "hygiene" in name or "consent" in name
+                    for name in rule_names), (
+            f"Should detect email list purchase antipattern, got rules: {rule_names}"
+        )
+
+    def test_forced_digital_marketing_on_stats_skill(self):
+        """Forcing digital-marketing domain on stats skill should still run without crashing."""
+        result = self.analyzer.analyze(GOOD_SKILL, domain="digital-marketing")
+        assert result.domain == "digital-marketing"
+        # Most rules should be not-applicable since it's a stats skill
+        assert result.rules_not_applicable > 0
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Maintenance Analyzer Tests
@@ -239,3 +314,4 @@ class TestCompositeScorer:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
