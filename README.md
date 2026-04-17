@@ -167,4 +167,4 @@ skill-eval ../skills/stats-reviewer/
 
 ## License
 
-[MIT](../LICENSE) — Use freely, attribute kindly.
+[MIT](LICENSE) — Use freely, attribute kindly.
