@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🔍 skill-evaluator</h1>
+  <h1 align="center">🔍 agent-skill-evaluator</h1>
   <p align="center">
     <strong>Evaluate agent skills before you install them.</strong><br>
     Think <code>npm audit</code> + <code>eslint</code> for <code>SKILL.md</code> files.
@@ -73,11 +73,11 @@ skill-eval ./some-skill/ --fail-below 70
 
 | Dimension | Weight | What It Checks |
 |:---|:---:|:---|
-| **Structure** | 15% | YAML frontmatter, required fields, section organization |
-| **Security** | 20% | Shell injection, credential exfil, prompt injection, obfuscation |
-| **Quality** | 15% | Decision trees, guardrails, edge cases, escape hatches, code templates |
-| **Domain Correctness** | 25% | Rule-based verification of domain-specific methodology |
-| **Maintenance** | 15% | File freshness, docs, tests, CI config, git signals |
+| **Structure** | 15% | YAML frontmatter, required fields, section organization. Penalties are weighted per finding — missing the entire file costs far more than missing a recommended field. |
+| **Security** | 20% | Shell injection, credential exfil, prompt injection, obfuscation. **Acts as a gate**: critical findings cap the overall score at F, high findings cap at D, regardless of other dimensions. |
+| **Quality** | 15% | Decision trees, guardrails, edge cases, escape hatches, code templates. Score is the ratio of passed checks to applicable checks — concise skills aren't penalized for having less text. |
+| **Domain Correctness** | 25% | Rule-based verification of domain-specific methodology (statistics, causal inference, data science). |
+| **Maintenance** | 15% | File freshness, docs, tests, CI config, git signals. Same ratio-based scoring as quality. |
 
 ### Grading Scale
 
@@ -85,11 +85,17 @@ skill-eval ./some-skill/ --fail-below 70
 |:---:|:---:|:---|
 | A+ | 95–100 | Exceptional — install with confidence |
 | A | 90–94 | Excellent — high quality, well-maintained |
+| A- | 85–89 | Very good — minor improvements possible |
 | B+ | 80–84 | Good — solid skill with some gaps |
 | B | 75–79 | Above average — usable but review findings |
+| B- | 70–74 | Decent — has notable weaknesses |
 | C+ | 65–69 | Fair — significant gaps, use with caution |
+| C | 60–64 | Below average — consider alternatives |
+| C- | 50–59 | Poor — major issues present |
 | D | 40–49 | Very poor — not recommended |
 | F | 0–39 | Failing — critical issues, do not install |
+
+> **Note:** If the security analyzer detects critical or high-severity risks, the overall score is hard-capped (critical → F, high → D) regardless of other dimensions.
 
 ---
 
