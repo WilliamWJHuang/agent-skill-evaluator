@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🔍 agent-skill-evaluator</h1>
+  <h1 align="center">🔍 skill-evaluator</h1>
   <p align="center">
     <strong>Evaluate agent skills before you install them.</strong><br>
     Think <code>npm audit</code> + <code>eslint</code> for <code>SKILL.md</code> files.
@@ -162,6 +162,34 @@ pytest tests/ -v
 skill-eval ../skills/experiment-designer/
 skill-eval ../skills/stats-reviewer/
 ```
+
+---
+
+## How scoring works
+
+Each dimension (Structure, Security, Quality, Domain Correctness, Maintenance) produces a 0-100 score. These are combined into a weighted composite.
+
+A few things worth knowing about the scoring:
+
+**Security is a gate, not just a weight.** If the security analyzer finds critical risks (prompt injection, credential harvesting, destructive shell commands), the overall score is hard-capped regardless of how well the skill scores on other dimensions. A skill with a prompt injection vulnerability gets an F even if the content is otherwise excellent.
+
+**Scores are normalized by applicable checks.** Quality and maintenance scores are computed as the ratio of passed checks to applicable checks. A concise, well-written skill won't score lower than a verbose one just because it has fewer regex matches. Each check that fires gets equal vote.
+
+**Structural penalties are weighted by severity.** Missing your SKILL.md entirely costs more than missing a recommended field. The penalty for each finding reflects how much it actually impacts usability.
+
+**What the scores don't tell you.** The current system is a static linter — it checks patterns in text. It can't tell you whether the skill actually makes an agent perform better, or whether the domain guidance is semantically correct beyond keyword matching. Those are harder problems (see below).
+
+---
+
+## Future research
+
+These are directions we'd like to explore. Contributions welcome.
+
+**Empirical weight calibration.** The dimension weights (Security 20%, Domain 25%, etc.) are based on judgment, not data. The right approach is to score a labeled corpus of known-good vs. known-bad skills and use the results to find weights that best predict the label. If you have a labeled skill corpus or want to help build one, open an issue.
+
+**Semantic domain checks.** The domain correctness analyzer currently uses regex patterns — it checks whether certain keywords appear, not whether the guidance is actually correct. Replacing this with embedding-based or lightweight LLM checks (e.g., "does this skill enforce power analysis, or just mention it?") would substantially improve accuracy.
+
+**Behavioral evaluation.** The ultimate test of a skill is: does an agent using it produce better outputs? A test harness with known-correct answers (e.g., "given this dataset, should the agent refuse to run the test?") would let us score skills by downstream impact rather than surface patterns. This is the direction taken by SkillsBench-style evaluations and would make this tool a performance predictor, not just a linter.
 
 ---
 

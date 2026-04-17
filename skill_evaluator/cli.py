@@ -102,6 +102,7 @@ def main(
         quality_score=quality_result.score,
         domain_score=domain_result.score,
         maintenance_score=maintenance_result.score,
+        security_gate=security_result.risk_level,
     )
 
     # ── Output ────────────────────────────────────────────────────────────
